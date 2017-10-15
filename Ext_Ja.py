@@ -8,21 +8,25 @@ import networkx as nx
 name = 'ca-cit-HepPh'
 #'internet-growth.txt' #'flickr-growth-sorted.txt''ca-cit-HepPh' 
 file_name = name+'/'+name+'.txt' 
-CN_output_file = file_name[:-4] + '-common_neighbor.txt'
-distance_file = file_name[:-4] + '--distance_file.txt'
+CN_file = file_name[:-4] + '-common_neighbor.txt'
+distance_file = file_name[:-4] + '--distance.txt'
+AA_file = file_name[:-4] + '--AA.txt'
 noden, edgen = 317080 , 1546540 # 104824 #1500000 #33140018
 predict = {}
 train_p = 0.5
 lb_train = 3 # lower bound of degree in training graph
 Core = set()
+def to_negative(str):
+	return str[:-4]+'--negative.txt'
 
-def sample_missing_edges(G, alpha=1):
+def sample_missing_edges(G, oldG, alpha=1):
 	E = G.number_of_edges() * alpha
 	V = G.nodes()
 	ret = set()
 	while len(ret)<E:
 		u,v = random.sample(V,2)
 		if u>v: u,v=v,u
+		if oldG.has_edge(u,v): continue
 		if (not (u,v) in ret) and (not G.has_edge(u,v)): 
 			ret.add((u,v))
 	return ret
@@ -56,7 +60,7 @@ if __name__ == '__main__':
 	train_edge_num = int(edgen*train_p)
 	print ('Data: ',file_name)
 	print ('train_edge_num:',train_edge_num)
-	fo = open(CN_output_file,'w')
+	# fo = open(CN_file,'w')
 	CN = []
 	for line in open(file_name):
 		str = line.split('\t')
@@ -83,8 +87,14 @@ if __name__ == '__main__':
 		i+=1
 	CN = nx.cn_soundarajan_hopcroft(G, newG.edges())  # long time
 	CN = list(CN)
-	pickle.dump(CN, fo)
-	fo.close();
+	pickle.dump(CN, open(CN_file,'w'))
+	CN = nx.cn_soundarajan_hopcroft(G, sample_missing_edges(newG,G))
+	pickle.dump(CN, open(to_negative(CN_file),'w'))
+	AA = nx.adamic_adar_index(G, newG.edges())
+	pickle.dump(AA, open(AA_file,'w'))
+	AA = nx.adamic_adar_index(G, sample_missing_edges(newG,G))
+	pickle.dump(AA, open(to_negative(AA_file),'w'))
+
 	prediction = sorted(predict, key=lambda x:x[-1], reverse=True)  #key=lambda x:x[-1]
 	edgen_new = newG.number_of_edges()
 #	assert 
