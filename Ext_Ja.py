@@ -17,6 +17,9 @@ predict = {}
 train_p = 0.5
 lb_train = 3 # lower bound of degree in training graph
 Core = set()
+G = nx.Graph()
+newG = nx.Graph()
+Core = set()
 def to_negative(str):
 	return str[:-4]+'--negative.txt'
 
@@ -54,15 +57,49 @@ def get_predict(G, Core):
 	print 'Predict complexity:',num
 	return list(predict)
 
+def calc_distribution(G, newG):
+	newG_E = sample_edges(newG)
+
+	Ja = list(nx.jaccard_coefficient(G, newG_E) )
+	pickle.dump(Ja, open(Ja_file,'w'))
+	Ja = list(nx.jaccard_coefficient(G, sample_missing_edges(newG,G) ) )
+	pickle.dump(Ja, open(to_negative(Ja_file),'w'))
+
+	CN = list(nx.cn_soundarajan_hopcroft(G, newG_E))  # long time
+	pickle.dump(CN, open(CN_file,'w'))
+	CN = list(nx.cn_soundarajan_hopcroft(G, sample_missing_edges(newG,G)))
+	pickle.dump(CN, open(to_negative(CN_file),'w'))
+
+	AA = list(nx.adamic_adar_index(G, newG_E) )
+	pickle.dump(AA, open(AA_file,'w'))
+	AA = list(nx.adamic_adar_index(G, sample_missing_edges(newG,G)) )
+	pickle.dump(AA, open(to_negative(AA_file),'w'))
+
+def Predict():
+	prediction = sorted(predict, key=lambda x:x[-1], reverse=True)  #key=lambda x:x[-1]
+	edgen_new = newG.number_of_edges()
+	prediction = prediction[:edgen_new]
+	print prediction[:10]
+	ans = 0
+	for x in prediction:
+		u,v=x[:2]
+		if newG.has_edge(u,v):
+			ans+=1
+	ans = 1.0*ans/newG.number_of_edges()
+	print 'Precision:', ans
+	N = len(Core)
+	C = N*(N-1)/2 - G.number_of_edges();
+	print 'Random precision:', newG.number_of_edges()*1.0/C
+	print 'Relative precision:', ans*C/newG.number_of_edges()
+
 if __name__ == '__main__':
 	start_time = time.time()
 	print time.ctime(start_time)
-	edgen_new = 0;
 	i=1;
 	G = nx.Graph()
-	newV = set()
-	Core = set()
 	newG = nx.Graph()
+	Core = set()
+	
 	train_edge_num = int(edgen*train_p)
 	print ('Data: ',file_name)
 	print ('train_edge_num:',train_edge_num)
@@ -87,7 +124,6 @@ if __name__ == '__main__':
 		else: # predict			
 			if (not u in Core) or (not v in Core):
 				continue;
-			edgen_new+=1;
 			newG.add_edge(u,v)	
 			# if i==edgen: break		
 		i+=1
@@ -95,46 +131,16 @@ if __name__ == '__main__':
 	for u in G.nodes(): 
 		G.node[u]['community'] = i
 		i+=1 
-		
-	newG_E = sample_edges(newG)
 	print 'newG.number_of_nodes():',newG.number_of_nodes()
 	print 'newG.number_of_edges():',newG.number_of_edges()
-
-	Ja = list(nx.jaccard_coefficient(G, sample_missing_edges(newG,G) ) )
-	pickle.dump(Ja, open(to_negative(Ja_file),'w'))
-
-	CN = nx.cn_soundarajan_hopcroft(G, newG_E)  # long time
-	CN = list(CN)
-	pickle.dump(CN, open(CN_file,'w'))
-
-	CN = list(nx.cn_soundarajan_hopcroft(G, sample_missing_edges(newG,G)))
-	pickle.dump(CN, open(to_negative(CN_file),'w'))
-
-	AA = list(nx.adamic_adar_index(G, newG_E) )
-	pickle.dump(AA, open(AA_file,'w'))
-
-	AA = list(nx.adamic_adar_index(G, sample_missing_edges(newG,G)) )
-	pickle.dump(AA, open(to_negative(AA_file),'w'))
-
-	prediction = sorted(predict, key=lambda x:x[-1], reverse=True)  #key=lambda x:x[-1]
-	edgen_new = newG.number_of_edges()
-#	assert 
+	newG_E = sample_edges(newG)
 	
+
 	
-#	s = input('Enter to continue..')
-	prediction = prediction[:edgen_new]
-	print prediction[:10]
-	ans = 0
-	for x in prediction:
-		u,v=x[:2]
-		if newG.has_edge(u,v):
-			ans+=1
-	ans = 1.0*ans/newG.number_of_edges()
-	print 'Precision:', ans
-	N = len(Core)
-	C = N*(N-1)/2 - G.number_of_edges();
-	print 'Random precision:', newG.number_of_edges()*1.0/C
-	print 'Relative precision:', ans*C/newG.number_of_edges()
+
+	
+
+	
 	print ('Total time:',time.time()-start_time)
 # Read finished..
 # G.number_of_nodes(): 271153
