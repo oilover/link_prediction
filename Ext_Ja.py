@@ -20,8 +20,12 @@ Core = set()
 def to_negative(str):
 	return str[:-4]+'--negative.txt'
 
-def sample_missing_edges(G, oldG, alpha=1):
-	E = G.number_of_edges() * alpha
+def sample_edges(G):
+	E = int(G.number_of_edges() * 0.1)
+	return random.sample(G.edges(), E)
+
+def sample_missing_edges(G, oldG, alpha=0.2):
+	E = int(G.number_of_edges() * alpha)
 	V = G.nodes()
 	ret = set()
 	while len(ret)<E:
@@ -52,6 +56,7 @@ def get_predict(G, Core):
 
 if __name__ == '__main__':
 	start_time = time.time()
+	print time.ctime(start_time)
 	edgen_new = 0;
 	i=1;
 	G = nx.Graph()
@@ -86,18 +91,26 @@ if __name__ == '__main__':
 			newG.add_edge(u,v)	
 			# if i==edgen: break		
 		i+=1
-	for u in G.nodes(): G.node[u]['community'] = 0
-	Ja = nx.jaccard_coefficient(G, sample_missing_edges(newG,G) )
+
+	for u in G.nodes(): 
+		G.node[u]['community'] = i
+		i+=1 
+		
+	newG_E = sample_edges(newG)
+	print 'newG.number_of_nodes():',newG.number_of_nodes()
+	print 'newG.number_of_edges():',newG.number_of_edges()
+
+	Ja = list(nx.jaccard_coefficient(G, sample_missing_edges(newG,G) ) )
 	pickle.dump(Ja, open(to_negative(Ja_file),'w'))
 
-	CN = nx.cn_soundarajan_hopcroft(G, newG.edges())  # long time
+	CN = nx.cn_soundarajan_hopcroft(G, newG_E)  # long time
 	CN = list(CN)
 	pickle.dump(CN, open(CN_file,'w'))
 
 	CN = list(nx.cn_soundarajan_hopcroft(G, sample_missing_edges(newG,G)))
 	pickle.dump(CN, open(to_negative(CN_file),'w'))
 
-	AA = list(nx.adamic_adar_index(G, newG.edges()) )
+	AA = list(nx.adamic_adar_index(G, newG_E) )
 	pickle.dump(AA, open(AA_file,'w'))
 
 	AA = list(nx.adamic_adar_index(G, sample_missing_edges(newG,G)) )
@@ -107,8 +120,7 @@ if __name__ == '__main__':
 	edgen_new = newG.number_of_edges()
 #	assert 
 	
-	print 'newG.number_of_nodes():',newG.number_of_nodes()
-	print 'newG.number_of_edges():',newG.number_of_edges()
+	
 #	s = input('Enter to continue..')
 	prediction = prediction[:edgen_new]
 	print prediction[:10]
