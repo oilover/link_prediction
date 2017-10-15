@@ -5,14 +5,18 @@
 import time,random
 import sys, pickle
 import networkx as nx
-name = 'digg-friends' #'ca-cit-HepPh'
+name = 'dblp_coauthor' #'ca-cit-HepTh'
 #'internet-growth.txt' #'flickr-growth-sorted.txt''ca-cit-HepPh' 
 file_name = name+'/'+name+'.txt' 
-Ja_file = file_name[:-4] + '-Ja.txt'
-CN_file = file_name[:-4] + '-common_neighbor.txt'
-distance_file = file_name[:-4] + '--distance.txt'
+Ja_file = file_name[:-4] + '--Ja.txt'
+PA_file = file_name[:-4] + '--PA.txt'
+CN_file = file_name[:-4] + '--CN.txt'
 AA_file = file_name[:-4] + '--AA.txt'
-noden, edgen = 317080 , 1546540 # 104824 #1500000 #33140018
+distance_file = file_name[:-4] + '--distance.txt'
+
+noden, edgen = 317080 , 1039471
+#2444798
+#3148447 #1546540 # 104824 #1500000 #33140018
 predict = {}
 train_p = 0.5
 lb_train = 3 # lower bound of degree in training graph
@@ -20,6 +24,7 @@ Core = set()
 G = nx.Graph()
 newG = nx.Graph()
 Core = set()
+newG_E = []
 def to_negative(str):
 	return str[:-4]+'--negative.txt'
 
@@ -57,13 +62,23 @@ def get_predict(G, Core):
 	print 'Predict complexity:',num
 	return list(predict)
 
+def calc_PA():
+	PA = list(nx.preferential_attachment(G, newG_E) )
+	pickle.dump(PA, open(PA_file,'w'))
+	PA = list(nx.preferential_attachment(G, sample_missing_edges(newG,G) ) )
+	pickle.dump(PA, open(to_negative(PA_file),'w'))
+
 def calc_distribution(G, newG):
-	newG_E = sample_edges(newG)
+	# if not newG_E or len(newG_E)<10: newG_E = sample_edges(newG)
+
 
 	Ja = list(nx.jaccard_coefficient(G, newG_E) )
 	pickle.dump(Ja, open(Ja_file,'w'))
 	Ja = list(nx.jaccard_coefficient(G, sample_missing_edges(newG,G) ) )
 	pickle.dump(Ja, open(to_negative(Ja_file),'w'))
+
+	calc_PA()
+
 
 	CN = list(nx.cn_soundarajan_hopcroft(G, newG_E))  # long time
 	pickle.dump(CN, open(CN_file,'w'))
@@ -74,6 +89,10 @@ def calc_distribution(G, newG):
 	pickle.dump(AA, open(AA_file,'w'))
 	AA = list(nx.adamic_adar_index(G, sample_missing_edges(newG,G)) )
 	pickle.dump(AA, open(to_negative(AA_file),'w'))
+
+def RP(N,e1,e2): # Random precision
+	C = N*(N-1)/2 - e1
+	return 1.0*e2/C
 
 def Predict():
 	prediction = sorted(predict, key=lambda x:x[-1], reverse=True)  #key=lambda x:x[-1]
@@ -90,7 +109,7 @@ def Predict():
 	N = len(Core)
 	C = N*(N-1)/2 - G.number_of_edges();
 	print 'Random precision:', newG.number_of_edges()*1.0/C
-	print 'Relative precision:', ans*C/newG.number_of_edges()
+	if ans: print 'Relative precision:', ans*C/newG.number_of_edges()
 
 if __name__ == '__main__':
 	start_time = time.time()
@@ -135,11 +154,7 @@ if __name__ == '__main__':
 	print 'newG.number_of_edges():',newG.number_of_edges()
 	newG_E = sample_edges(newG)
 	
-
-	
-
-	
-
+	calc_distribution(G, newG)
 	
 	print ('Total time:',time.time()-start_time)
 # Read finished..
