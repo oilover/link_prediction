@@ -14,6 +14,7 @@ noden, edgen = 317080 , 1546540#335708 # 104824 #1500000 #33140018
 predict = {}
 train_p = 0.5
 Core_num = 500
+lb_train = 3
 K = 50
 H = [{} for i in range(K)]
 h = [{} for i in range(K)]
@@ -34,8 +35,7 @@ def get_predict(G, Core):
 		# if not u in newG.nodes(): continue;
 		for v in set(G[u].keys()):
 			# if not v in newG.nodes(): continue;
-			for U in set(G[v].keys())&Core:
-				# if not v in newG.nodes(): continue;
+			for U in set(G[v].keys())&Core - set(G[u].keys()):
 				if u>=U: continue
 				if (u,U) in predict: continue
 				num+=1
@@ -78,7 +78,8 @@ def main():
 		# if u>v: u,v=v,u
 		if i<=train_edge_num:
 			G.add_edge(u,v)
-
+			if G.degree(u)==lb_train: Core.add(u)
+			if G.degree(v)==lb_train: Core.add(v)
 			update(u,v)
 			if i==train_edge_num:
 				fo.write('Begin training..G node:%d'%(G.number_of_nodes()))

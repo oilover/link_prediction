@@ -5,7 +5,7 @@
 import time,random
 import sys, pickle
 import networkx as nx
-name = 'dblp_coauthor' #'ca-cit-HepTh'
+name = 'ca-cit-HepTh'
 #'internet-growth.txt' #'flickr-growth-sorted.txt''ca-cit-HepPh' 
 file_name = name+'/'+name+'.txt' 
 Ja_file = file_name[:-4] + '--Ja.txt'
@@ -14,8 +14,7 @@ CN_file = file_name[:-4] + '--CN.txt'
 AA_file = file_name[:-4] + '--AA.txt'
 distance_file = file_name[:-4] + '--distance.txt'
 
-noden, edgen = 317080 , 1039471
-#2444798
+noden, edgen = 317080 , 2444798
 #3148447 #1546540 # 104824 #1500000 #33140018
 predict = {}
 train_p = 0.5
@@ -24,6 +23,7 @@ Core = set()
 G = nx.Graph()
 newG = nx.Graph()
 Core = set()
+Core_num = 5000
 newG_E = []
 def to_negative(str):
 	return str[:-4]+'--negative.txt'
@@ -45,21 +45,23 @@ def sample_missing_edges(G, oldG, alpha=0.2):
 	return ret
 
 def get_predict(G, Core):
-	return []
+	# return []
 	predict = set()
 	num = 0;
 	for u in Core:
 		# if not u in newG.nodes(): continue;
 		for v in G[u]:
 			# if not v in newG.nodes(): continue;
-			for U in set(G[v].keys()) & Core:
+			for U in (set(G[v].keys()) & Core) - set(G[u].keys()):
 				# if not v in newG.nodes(): continue;
 				if u>=U: continue
-				if (u,U) in predict: continue
+				# if (u,U) in predict: continue
 				num+=1
 				predict.add((u,U))
-	predict=nx.jaccard_coefficient(G,predict)
 	print 'Predict complexity:',num
+	predict = list(nx.jaccard_coefficient(G,predict))
+	
+	print ('len(predict):', len(predict))
 	return list(predict)
 
 def calc_PA():
@@ -70,7 +72,6 @@ def calc_PA():
 
 def calc_distribution(G, newG):
 	# if not newG_E or len(newG_E)<10: newG_E = sample_edges(newG)
-
 
 	Ja = list(nx.jaccard_coefficient(G, newG_E) )
 	pickle.dump(Ja, open(Ja_file,'w'))
@@ -94,11 +95,11 @@ def RP(N,e1,e2): # Random precision
 	C = N*(N-1)/2 - e1
 	return 1.0*e2/C
 
-def Predict():
+def MyPredict():
 	prediction = sorted(predict, key=lambda x:x[-1], reverse=True)  #key=lambda x:x[-1]
 	edgen_new = newG.number_of_edges()
 	prediction = prediction[:edgen_new]
-	print prediction[:10]
+	print prediction[:5]
 	ans = 0
 	for x in prediction:
 		u,v=x[:2]
@@ -107,7 +108,9 @@ def Predict():
 	ans = 1.0*ans/newG.number_of_edges()
 	print 'Precision:', ans
 	N = len(Core)
-	C = N*(N-1)/2 - G.number_of_edges();
+	e1 = G.subgraph(Core).number_of_edges()
+	print 'e1:',e1
+	C = N*(N-1)/2 - e1
 	print 'Random precision:', newG.number_of_edges()*1.0/C
 	if ans: print 'Relative precision:', ans*C/newG.number_of_edges()
 
@@ -135,6 +138,7 @@ if __name__ == '__main__':
 			if (i==train_edge_num): 
 				print 'G.number_of_nodes():',G.number_of_nodes()
 				print 'G.number_of_edges():',G.number_of_edges()
+				Core = set(random.sample(Core, Core_num) )
 				print 'Core size:', len(Core)
 				print 'Begin predict..'
 				st=time.time()
@@ -154,7 +158,8 @@ if __name__ == '__main__':
 	print 'newG.number_of_edges():',newG.number_of_edges()
 	newG_E = sample_edges(newG)
 	
-	calc_distribution(G, newG)
+	# calc_distribution(G, newG)
+	MyPredict()
 	
 	print ('Total time:',time.time()-start_time)
 # Read finished..
