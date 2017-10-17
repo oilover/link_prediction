@@ -5,7 +5,8 @@
 import time,random
 import sys, pickle
 import networkx as nx
-name = 'ca-cit-HepTh'
+from time import ctime
+name = 'facebook-wosn-links' #'ca-cit-HepTh'
 #'internet-growth.txt' #'flickr-growth-sorted.txt''ca-cit-HepPh' 
 file_name = name+'/'+name+'.txt' 
 Ja_file = file_name[:-4] + '--Ja.txt'
@@ -14,16 +15,17 @@ CN_file = file_name[:-4] + '--CN.txt'
 AA_file = file_name[:-4] + '--AA.txt'
 distance_file = file_name[:-4] + '--distance.txt'
 
-noden, edgen = 317080 , 2444798
+noden, edgen = 317080 , 335708
+#2444798
 #3148447 #1546540 # 104824 #1500000 #33140018
 predict = {}
 train_p = 0.5
-lb_train = 3 # lower bound of degree in training graph
+lb_train = 5 # lower bound of degree in training graph
 Core = set()
 G = nx.Graph()
 newG = nx.Graph()
 Core = set()
-Core_num = 5000
+Core_num = 1000
 newG_E = []
 def to_negative(str):
 	return str[:-4]+'--negative.txt'
@@ -44,25 +46,32 @@ def sample_missing_edges(G, oldG, alpha=0.2):
 			ret.add((u,v))
 	return ret
 
+def my_jaccard(G,u,v):
+	Nu,Nv = G.neighbors(u),G.neighbors(v)
+	return 1.0*len(Nu&Nv)/len(Nu|Nv)
+
 def get_predict(G, Core):
 	# return []
-	predict = set()
+	predict = []
 	num = 0;
+	tt = time.time()
 	for u in Core:
-		# if not u in newG.nodes(): continue;
-		for v in G[u]:
-			# if not v in newG.nodes(): continue;
-			for U in (set(G[v].keys()) & Core) - set(G[u].keys()):
-				# if not v in newG.nodes(): continue;
-				if u>=U: continue
-				# if (u,U) in predict: continue
-				num+=1
-				predict.add((u,U))
+		Space = Core - set(G[u].keys())
+		if random.random()<0.1: print 'len(Space):',len(Space)
+		for v in Space:
+			if u>=v: continue
+			num+=1
+			
+			t = list(nx.jaccard_coefficient(G,[(u,v)]))
+			if (num%10000==0): print t,num,len(predict),time.time()-tt,ctime(time.time())
+			if t[0][-1]>0.02: 
+				predict.append(t[0])
+				if len(predict)<8: print t
+			
+
 	print 'Predict complexity:',num
-	predict = list(nx.jaccard_coefficient(G,predict))
-	
 	print ('len(predict):', len(predict))
-	return list(predict)
+	return predict
 
 def calc_PA():
 	PA = list(nx.preferential_attachment(G, newG_E) )
@@ -114,6 +123,15 @@ def MyPredict():
 	print 'Random precision:', newG.number_of_edges()*1.0/C
 	if ans: print 'Relative precision:', ans*C/newG.number_of_edges()
 
+def calc_predict(Core):
+	print 'Core size(before sample):', len(Core)
+	Core = set(random.sample(Core, Core_num) )
+	print 'Core size:', len(Core)
+	print 'Begin predict..'
+	st=time.time()
+	predict=get_predict(G, Core)
+	print 'Predict finished, time: ', time.time()-st
+
 if __name__ == '__main__':
 	start_time = time.time()
 	print time.ctime(start_time)
@@ -138,15 +156,8 @@ if __name__ == '__main__':
 			if (i==train_edge_num): 
 				print 'G.number_of_nodes():',G.number_of_nodes()
 				print 'G.number_of_edges():',G.number_of_edges()
-				Core = set(random.sample(Core, Core_num) )
-				print 'Core size:', len(Core)
-				print 'Begin predict..'
-				st=time.time()
-				predict=get_predict(G, Core)
-				print 'Predict finished, time: ', time.time()-st
+				
 		else: # predict			
-			if (not u in Core) or (not v in Core):
-				continue;
 			newG.add_edge(u,v)	
 			# if i==edgen: break		
 		i+=1
@@ -154,10 +165,14 @@ if __name__ == '__main__':
 	for u in G.nodes(): 
 		G.node[u]['community'] = i
 		i+=1 
+	NC = set()
+	for u in Core:
+		if u in newG and newG.degree(u)>=lb_train: NC.add(u)
+	Core = NC
 	print 'newG.number_of_nodes():',newG.number_of_nodes()
 	print 'newG.number_of_edges():',newG.number_of_edges()
-	newG_E = sample_edges(newG)
-	
+	# newG_E = sample_edges(newG)
+	calc_predict(Core)
 	# calc_distribution(G, newG)
 	MyPredict()
 	
