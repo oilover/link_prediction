@@ -18,7 +18,7 @@ distance_file = file_name[:-4] + '--distance.txt'
 noden, edgen = 317080 , 335708
 #2444798
 #3148447 #1546540 # 104824 #1500000 #33140018
-predict = {}
+predict = []
 train_p = 0.5
 lb_train = 5 # lower bound of degree in training graph
 Core = set()
@@ -49,30 +49,6 @@ def sample_missing_edges(G, oldG, alpha=0.2):
 def my_jaccard(G,u,v):
 	Nu,Nv = G.neighbors(u),G.neighbors(v)
 	return 1.0*len(Nu&Nv)/len(Nu|Nv)
-
-def get_predict(G, Core):
-	# return []
-	predict = []
-	num = 0;
-	tt = time.time()
-	for u in Core:
-		Space = Core - set(G[u].keys())
-		if random.random()<0.1: print 'len(Space):',len(Space)
-		for v in Space:
-			if u>=v: continue
-			num+=1
-			
-			t = list(nx.jaccard_coefficient(G,[(u,v)]))
-			if (num%10000==0): print t,num,len(predict),time.time()-tt,ctime(time.time())
-			if t[0][-1]>0.02: 
-				predict.append(t[0])
-				if len(predict)<8: print t
-			
-
-	print 'Predict complexity:',num
-	print ('len(predict):', len(predict))
-	return predict
-
 def calc_PA():
 	PA = list(nx.preferential_attachment(G, newG_E) )
 	pickle.dump(PA, open(PA_file,'w'))
@@ -100,21 +76,48 @@ def calc_distribution(G, newG):
 	AA = list(nx.adamic_adar_index(G, sample_missing_edges(newG,G)) )
 	pickle.dump(AA, open(to_negative(AA_file),'w'))
 
+
 def RP(N,e1,e2): # Random precision
 	C = N*(N-1)/2 - e1
 	return 1.0*e2/C
 
-def MyPredict():
-	prediction = sorted(predict, key=lambda x:x[-1], reverse=True)  #key=lambda x:x[-1]
-	edgen_new = newG.number_of_edges()
-	prediction = prediction[:edgen_new]
-	print prediction[:5]
+
+
+def calc_predict(Core):
+	print 'Begin predict..'
+	st=time.time()
+	predict = []
+	num = 0;
+	tt = time.time()
+	for u in Core:
+		Space = Core - set(G[u].keys())
+		# if random.random()<0.01: print 'len(Space):',len(Space)
+		for v in Space:
+			if u>=v: continue
+			num+=1			
+			t = list(nx.jaccard_coefficient(G,[(u,v)]))
+			if (num%100000==0): print t,num,len(predict),time.time()-tt,ctime(time.time())
+			if t[0][-1]>0.01: 
+				predict.append(t[0])
+				if len(predict)<8: print t
+
+	print 'Predict complexity:',num
+	print ('len(predict):', len(predict))
+	print 'Predict finished, time: ', time.time()-st
+	predict.sort(key=lambda x:x[-1], reverse=True)  #key=lambda x:x[-1]
+	subG = newG.subgraph(Core)
+	edgen_new = subG.number_of_edges()
+	print 'newG.subgraph(Core).number_of_edges():',newG.subgraph(Core).number_of_edges()
+	predict = predict[:edgen_new]
+	print '5 of predict:', predict[:5]
 	ans = 0
-	for x in prediction:
+	for x in predict:
 		u,v=x[:2]
 		if newG.has_edge(u,v):
 			ans+=1
-	ans = 1.0*ans/newG.number_of_edges()
+	xx = newG.subgraph(Core).number_of_edges()
+	print ans,'/',xx
+	ans = 1.0*ans/xx
 	print 'Precision:', ans
 	N = len(Core)
 	e1 = G.subgraph(Core).number_of_edges()
@@ -123,15 +126,7 @@ def MyPredict():
 	print 'Random precision:', newG.number_of_edges()*1.0/C
 	if ans: print 'Relative precision:', ans*C/newG.number_of_edges()
 
-def calc_predict(Core):
-	print 'Core size(before sample):', len(Core)
-	Core = set(random.sample(Core, Core_num) )
-	print 'Core size:', len(Core)
-	print 'Begin predict..'
-	st=time.time()
-	predict=get_predict(G, Core)
-	print 'Predict finished, time: ', time.time()-st
-
+had_Core = True
 if __name__ == '__main__':
 	start_time = time.time()
 	print time.ctime(start_time)
@@ -151,8 +146,9 @@ if __name__ == '__main__':
 		# 	if u>v: u,v=v,u
 		if i<=train_edge_num:
 			G.add_edge(u,v)
-			if G.degree(u)==lb_train: Core.add(u)
-			if G.degree(v)==lb_train: Core.add(v)
+			if not had_Core:
+				if G.degree(u)==lb_train: Core.add(u)
+				if G.degree(v)==lb_train: Core.add(v)
 			if (i==train_edge_num): 
 				print 'G.number_of_nodes():',G.number_of_nodes()
 				print 'G.number_of_edges():',G.number_of_edges()
@@ -165,16 +161,26 @@ if __name__ == '__main__':
 	for u in G.nodes(): 
 		G.node[u]['community'] = i
 		i+=1 
-	NC = set()
-	for u in Core:
-		if u in newG and newG.degree(u)>=lb_train: NC.add(u)
-	Core = NC
+	if not had_Core:
+		NC = set()
+		for u in Core:
+			if u in newG and newG.degree(u)>=lb_train: NC.add(u)
+		Core = NC
+		pickle.dump(Core,open(file_name[:-4] + '--Core-all.txt','w'))
+		if len(Core)>Core_num: Core = set(random.sample(Core, Core_num) )
+		pickle.dump(Core,open(file_name[:-4] + '--Core.txt','w'))
+	else:
+		Core = pickle.load(open(file_name[:-4] + '--Core.txt'))
+	# print 'Core size(before sample):', len(Core)
+	
+	# print 'Core size:', len(Core)
 	print 'newG.number_of_nodes():',newG.number_of_nodes()
 	print 'newG.number_of_edges():',newG.number_of_edges()
+	print 'newG.subgraph(Core).number_of_edges():',newG.subgraph(Core).number_of_edges()
 	# newG_E = sample_edges(newG)
 	calc_predict(Core)
 	# calc_distribution(G, newG)
-	MyPredict()
+	# MyPredict()
 	
 	print ('Total time:',time.time()-start_time)
 # Read finished..
