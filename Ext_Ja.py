@@ -2,7 +2,7 @@
 	Digg: need to be sorted by timestamps (279,630 nodes and 1,731,653 directed edges) 170w
 	wiki-growth: 1,870,709 nodes and 39,953,145 directed edges
 '''
-import time,random
+import time,random, numba
 import sys, pickle
 import networkx as nx
 from time import ctime
@@ -24,9 +24,35 @@ lb_train = 5 # lower bound of degree in training graph
 Core = set()
 G = nx.Graph()
 newG = nx.Graph()
-Core = set()
 Core_num = 1000
 newG_E = []
+global ans,e1,e2,K,H,h,I,is_App,had_Core  # correctly predicted edges
+e1,e2 = 774, 303  # e2: new raise edges
+### Approximate Jaccard Begin ###
+K = 10
+H = [{} for i in range(K)]
+h = [{} for i in range(K)]
+I = [{} for i in range(K)]
+is_App = True #whether or not use approximate algorithm
+@numba.jit
+def App_Ja(u,v):
+	cnt=0
+	for i in range(K): 
+		if u in I[i] and I[i][u]==I[i][v]: cnt+=1
+	return 1.0*cnt/K
+@numba.jit
+def update(u,v):
+	for k in range(K):
+		if not u in h[k]: h[k][u] = random.random()
+		if not v in h[k]: h[k][v] = random.random()
+		if not u in H[k] or h[k][v]<H[k][u]: 
+			H[k][u] = h[k][v]
+			I[k][u] = v
+		if not v in H[k] or h[k][u]<H[k][v]:
+			H[k][v] = h[k][u]
+			I[k][v] = u
+	pass
+### Approximate Jaccard End ###
 def to_negative(str):
 	return str[:-4]+'--negative.txt'
 
@@ -81,8 +107,15 @@ def RP(N,e1,e2): # Random precision
 	C = N*(N-1)/2 - e1
 	return 1.0*e2/C
 
-
-
+def print_result():
+	print ans,'/',e2
+	ans = 1.0*ans/e2
+	print 'Precision:', ans
+	print 'e1:',e1
+	rp = RP(len(Core), e1,e2)
+	print 'Random precision:', rp
+	if ans: print 'Relative precision:', ans/RP
+# @numba.jit
 def calc_predict(Core):
 	print 'Begin predict..'
 	st=time.time()
@@ -90,44 +123,39 @@ def calc_predict(Core):
 	num = 0;
 	tt = time.time()
 	for u in Core:
-		Space = Core - set(G[u].keys())
+		Space = Core
+		if u in G: Space = Core - set(G[u].keys())
 		# if random.random()<0.01: print 'len(Space):',len(Space)
 		for v in Space:
 			if u>=v: continue
 			num+=1			
-			t = list(nx.jaccard_coefficient(G,[(u,v)]))
-			if (num%100000==0): print t,num,len(predict),time.time()-tt,ctime(time.time())
+			if is_App:
+				t = [[u,v,App_Ja(u,v)]]
+			else:
+				t = list(nx.jaccard_coefficient(G,[(u,v)]))
+			if (num%500000==0): print t,num,len(predict),time.time()-tt,ctime(time.time())
 			if t[0][-1]>0.01: 
 				predict.append(t[0])
-				if len(predict)<8: print t
+				# if len(predict)<8: print t
 
-	print 'Predict complexity:',num
+	# print 'Predict complexity:',num
 	print ('len(predict):', len(predict))
 	print 'Predict finished, time: ', time.time()-st
 	predict.sort(key=lambda x:x[-1], reverse=True)  #key=lambda x:x[-1]
 	subG = newG.subgraph(Core)
-	edgen_new = subG.number_of_edges()
-	print 'newG.subgraph(Core).number_of_edges():',newG.subgraph(Core).number_of_edges()
-	predict = predict[:edgen_new]
+	predict = predict[:e2]
 	print '5 of predict:', predict[:5]
+	predict = set([(u,v) for (u,v,p) in predict])
+	return predict
 	ans = 0
 	for x in predict:
 		u,v=x[:2]
 		if newG.has_edge(u,v):
 			ans+=1
-	xx = newG.subgraph(Core).number_of_edges()
-	print ans,'/',xx
-	ans = 1.0*ans/xx
-	print 'Precision:', ans
-	N = len(Core)
-	e1 = G.subgraph(Core).number_of_edges()
-	print 'e1:',e1
-	C = N*(N-1)/2 - e1
-	print 'Random precision:', newG.number_of_edges()*1.0/C
-	if ans: print 'Relative precision:', ans*C/newG.number_of_edges()
+	print_result()
 
-had_Core = True
-if __name__ == '__main__':
+had_Core = True # Core shifou shixian write into file
+def main():
 	start_time = time.time()
 	print time.ctime(start_time)
 	i=1;
@@ -139,22 +167,31 @@ if __name__ == '__main__':
 	print ('Data: ',file_name)
 	print ('train_edge_num:',train_edge_num)
 	# fo = open(CN_file,'w')
-	CN = []
+	if had_Core:
+		Core = pickle.load(open(file_name[:-4] + '--Core.txt'))
+	ans = 0
 	for line in open(file_name):
 		str = line.split('\t')
 		u,v=[int(x) for x in str[:2]]
 		# 	if u>v: u,v=v,u
 		if i<=train_edge_num:
-			G.add_edge(u,v)
+			if not is_App: G.add_edge(u,v)
+			# if u in Core and v in Core: e1+=1
 			if not had_Core:
 				if G.degree(u)==lb_train: Core.add(u)
 				if G.degree(v)==lb_train: Core.add(v)
+			if had_Core and (u in Core or v in Core) and is_App:
+				update(u,v)
 			if (i==train_edge_num): 
-				print 'G.number_of_nodes():',G.number_of_nodes()
-				print 'G.number_of_edges():',G.number_of_edges()
-				
+				# print 'G.number_of_nodes():',G.number_of_nodes()
+				# print 'G.number_of_edges():',G.number_of_edges()
+				if had_Core:
+					predict = calc_predict(Core)
 		else: # predict			
-			newG.add_edge(u,v)	
+			if u>v: u,v=v,u
+			if had_Core:
+				if (u,v) in predict: ans+=1
+			else: newG.add_edge(u,v)	
 			# if i==edgen: break		
 		i+=1
 
@@ -170,19 +207,31 @@ if __name__ == '__main__':
 		if len(Core)>Core_num: Core = set(random.sample(Core, Core_num) )
 		pickle.dump(Core,open(file_name[:-4] + '--Core.txt','w'))
 	else:
-		Core = pickle.load(open(file_name[:-4] + '--Core.txt'))
+		# Core_all = pickle.load(open(file_name[:-4] + '--Core-all.txt'))
+		# G = G.subgraph(Core_all)
+		pass
+		# Core = pickle.load(open(file_name[:-4] + '--Core.txt'))
 	# print 'Core size(before sample):', len(Core)
 	
 	# print 'Core size:', len(Core)
-	print 'newG.number_of_nodes():',newG.number_of_nodes()
-	print 'newG.number_of_edges():',newG.number_of_edges()
-	print 'newG.subgraph(Core).number_of_edges():',newG.subgraph(Core).number_of_edges()
+	# print 'newG.number_of_nodes():',newG.number_of_nodes()
+	# print 'newG.number_of_edges():',newG.number_of_edges()
 	# newG_E = sample_edges(newG)
-	calc_predict(Core)
+	#calc_predict(Core)
+	if had_Core and is_App:
+		print ans,'/',e2
+		ans = 1.0*ans/e2
+		print 'Precision:', ans
+		rp = RP(len(Core), e1,e2)
+		print 'Random precision:', rp
+		if ans: print 'Relative precision:', ans/rp
 	# calc_distribution(G, newG)
 	# MyPredict()
 	
 	print ('Total time:',time.time()-start_time)
+
+if __name__ == '__main__':
+	main()
 # Read finished..
 # G.number_of_nodes(): 271153
 # newG.number_of_nodes(): 216874

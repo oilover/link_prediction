@@ -60,6 +60,7 @@ def update(u,v):
 	# 		I[k][v] = u
 
 # @numba.jit
+had_Core = True
 def main():
 	start_time = time.time()
 	print time.ctime(start_time)
@@ -71,6 +72,8 @@ def main():
 	print ('Data: ',file_name)
 	print ('train_edge_num:',train_edge_num)
 	fo = open(output_file,'w')
+	if had_Core:
+		Core = pickle.load(open(file_name[:-4] + '--Core.txt'))
 	for line in open(file_name):
 		str = line.split('\t')
 		u,v=[int(x) for x in str[:2]]
@@ -78,9 +81,11 @@ def main():
 		# if u>v: u,v=v,u
 		if i<=train_edge_num:
 			G.add_edge(u,v)
-			if G.degree(u)==lb_train: Core.add(u)
-			if G.degree(v)==lb_train: Core.add(v)
-			update(u,v)
+			if not had_Core:
+				if G.degree(u)==lb_train: Core.add(u)
+				if G.degree(v)==lb_train: Core.add(v)
+			if had_Core and (u in Core or v in Core):
+				update(u,v)
 			if i==train_edge_num:
 				fo.write('Begin training..G node:%d'%(G.number_of_nodes()))
 				fo.flush()
