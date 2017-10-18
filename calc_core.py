@@ -12,9 +12,18 @@ predict = []
 train_p = 0.5
 lb_train = 5 # lower bound of degree in training graph
 Core = set()
-G = nx.Graph()
-newG = nx.Graph()
-Core_num = 1000
+G = {} #nx.Graph()
+newG = {} #nx.Graph()
+Core_num = 5000
+
+def Add(*nodes): # when every edge arrive, call this method
+	global G,newG
+	for u in nodes:
+		if not u in G: G[u]=1
+		else :G[u]+=1 
+		if G[u]==lb_train: Core.add(u)
+
+def prune_Core():
 
 if __name__ == '__main__':
 	G = nx.Graph()
