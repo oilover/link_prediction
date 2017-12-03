@@ -27,6 +27,7 @@ def hascf(sets):
 
 def write_processed_sets(G, sets, name):
     pickle.dump((G,sets), open(os.path.join('UnderlyingNetwork', name +'.dat'),'wb') )
+
 def quchong(sets):
     for k in sets.keys(): sets[k] = set(sets[k])
     team_list = sorted(sets.items(), key=lambda x:len(x[-1]))
@@ -39,6 +40,8 @@ def quchong(sets):
                 print ID, 'is subcommunity of', ID2
                 break    
     return sets
+
+# get Gteams: Graph for every team
 def getDataGraph(sets, G):  # sets: teams
     Gteams = {}
     for k in sets.keys():
@@ -60,7 +63,7 @@ def getDataGraph(sets, G):  # sets: teams
         else:
             del sets[k]
     sets = quchong(sets)
-    return sets, Gteams
+    return sets, Gteams  
 
 def getAllOpenTriangles(G, sets):   #  open[(u,v)]:  third edge of open triangles (u,v) in
     opens = {}          #   reverse:  node --> teamID
@@ -153,7 +156,7 @@ if __name__ == '__main__':
     name = 'lastFM_tags'                
 
     G, init_sets = pickle.load(open(os.path.join('UnderlyingNetwork', name +'.pkl'),'rb'))
-    
+    print 'Data: ', name
     print 'number of nodes and edges in the graph:'
     print G.number_of_nodes(), G.number_of_edges()
     sets = init_sets
